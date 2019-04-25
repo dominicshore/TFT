@@ -11,54 +11,67 @@ library("bannerCommenter") # not required
 
 file_name <- "./ts17individual02lodgmentmethodsextaxablestatusstateageyear.xlsx"
 
-indiv_tax_stats <- read_excel(path = file_name, sheet = "Individuals Table 2B", skip = 2, .name_repair = make_clean_names)
+indiv_tax_stats_raw <- read_excel(path = file_name, sheet = "Individuals Table 2B", skip = 2, .name_repair = make_clean_names)
 
-names(indiv_tax_stats) <- names(indiv_tax_stats) %>%
+names(indiv_tax_stats_raw) <- names(indiv_tax_stats_raw) %>%
   str_remove_all(pattern = "[0-9]+")
 
-#-------------------------------------------------------------------------------------------------------
-#              Calculating _average taxable income_ and _total income or loss_ per cohort              -
-#   Adding personal income tax payable with (pit_tft) and without (pit_no_tft) the tax free threshold  -
-#-------------------------------------------------------------------------------------------------------
-indiv_tax_stats <- indiv_tax_stats %>%
+#-----------------------------------------------------------------------------------------------------
+#              Calculate _average taxable income_ and _total income or loss_ per cohort              -
+#   Add personal income tax payable with (pit_tft) and without (pit_no_tft) the tax free threshold   -
+#                           Remove letters preceding age cohort descriptors                          -
+#-----------------------------------------------------------------------------------------------------
+
+indiv_tax_stats <- indiv_tax_stats_raw %>%
   mutate(
     avg_sal_and_wage = salary_or_wages / salary_or_wages_no,
-    avg_tot_y_or_l   = total_income_or_loss / total_income_or_loss_no,
     #adding variables showing with and without tft
     pit_tft = case_when(
-      avg_tot_y_or_l <= 18000 ~ 0,
-      avg_tot_y_or_l <= 37000 ~ ((avg_tot_y_or_l - 18201) * 0.1900),
-      avg_tot_y_or_l <= 90000 ~ ((avg_tot_y_or_l - 37001) * 0.3250) + 3572,
-      avg_tot_y_or_l <= 18000 ~ ((avg_tot_y_or_l - 90001) * 0.3700) + 20797,
-      TRUE ~ ((avg_tot_y_or_l - 180001) * 0.4500) + 54097),
+      avg_sal_and_wage <= 18000 ~ 0,
+      avg_sal_and_wage <= 37000 ~ ((avg_sal_and_wage - 18201) * 0.1900),
+      avg_sal_and_wage <= 90000 ~ ((avg_sal_and_wage - 37001) * 0.3250) + 3572,
+      avg_sal_and_wage <= 180000 ~ ((avg_sal_and_wage - 90001) * 0.3700) + 20797,
+      TRUE ~ ((avg_sal_and_wage - 180001) * 0.4500) + 54097),
     pit_no_tft = case_when(
-      avg_tot_y_or_l <= 37000 ~ (avg_tot_y_or_l * 0.1900),
-      avg_tot_y_or_l <= 90000 ~ ((avg_tot_y_or_l - 37001) * 0.3250) + 3572,
-      avg_tot_y_or_l <= 18000 ~ ((avg_tot_y_or_l - 90001) * 0.3700) + 20797,
-      TRUE ~ ((avg_tot_y_or_l - 180001) * 0.4500) + 54097),
-    age_range = factor(str_remove_all(age_range, pattern = "[a-z][.] "), ordered = TRUE) %>% fct_shift(n = -1L)
+      avg_sal_and_wage <= 37000 ~ (avg_sal_and_wage * 0.1900),
+      avg_sal_and_wage <= 90000 ~ ((avg_sal_and_wage - 37001) * 0.3250) + 7030,
+      avg_sal_and_wage <= 180000 ~ ((avg_sal_and_wage - 90001) * 0.3700) + 24255,
+      TRUE ~ ((avg_sal_and_wage - 180001) * 0.4500) + 57555),
+    age_range = factor(str_remove_all(age_range, pattern = "[a-z][.] "), ordered = TRUE) %>% fct_shift(n = -1L),
+    pit_tft_diff = pit_no_tft - pit_tft
     ) %>%
-  select(1, 3:6, pit_tft, pit_no_tft, avg_sal_and_wage, avg_tot_y_or_l)
+  select(1, 3:6, avg_sal_and_wage, pit_tft, pit_no_tft, pit_tft_diff)
 
 #----------------------------------------------------------------
 #    What does the distribution of 'Non Taxable' look like?     -
-#    Why are there taxpayers with >$18,200 in the histogram?    -
+#    Why are there taxpayers with >$18,200 income in the histogram?    -
 #     Turns out its predominately the superannuation system     -
 #----------------------------------------------------------------
 # Graph of incomes for taxpayers with "Non Taxable" designation. Interesting to see some of the
 # distribution lies beyond $20,000; I wonder what's going on there?
-indiv_tax_stats %>%
+p0_non_taxable_dist <- indiv_tax_stats %>%
   filter(taxable_status == "Non Taxable") %>%
   ggplot(aes(x = avg_sal_and_wage)) +
   geom_histogram(bins = 30, fill = "lightblue") +
-  geom_vline(xintercept = 18200, colour = "red", linetype = "dashed") +
+  geom_vline(xintercept = c(indiv_tax_stats %>%
+                              filter(taxable_status == "Non Taxable") %>%
+                              summarise(mean(avg_sal_and_wage, na.rm = T)) %>%
+                              pluck(1), 18200), colour = c("black", "red"), linetype = "dashed") +
   theme_light() +
-  scale_x_continuous(labels = scales::dollar, expand = expand_scale(add = c(0, 0))) +
+  scale_x_continuous(labels = scales::dollar, expand = expand_scale(add = c(0, 0)), breaks = c(5000, indiv_tax_stats %>%
+                                                                                                 filter(taxable_status == "Non Taxable") %>%
+                                                                                                 summarise(mean(avg_sal_and_wage, na.rm = T)) %>%
+                                                                                                 pluck(1), 18200)) +
   scale_y_continuous(expand = expand_scale(add = c(0, 20))) +
   labs(
     x = "",
     y = "",
-    title = "Distribution of 'Non Taxable' tax payers"
+    title = "Average income of people who are 'Non Taxable'",
+    subtitle = "Over the 2010-11 to 2016-17 income years the average was roughly $10,500 with some superannuants exceeding the TFT",
+    caption = "Source: Tax Stats (2017) - Individuals table 2B"
+  ) +
+  theme(
+    panel.grid = element_blank()
   )
 
 # It turns out that a small number of Baby Boomers are at the tail of that distrubtion
@@ -68,22 +81,24 @@ indiv_tax_stats %>%
   group_by(state_territory, age_range) %>%
   tally()
 
-#----------------------------------------------------------------------------------------
-#  Create a summary of gross income tax liability _(prior to deductions and offsets)_   -
-#                 Clean the names of the age cohorts by removing prefixes               -
-#----------------------------------------------------------------------------------------
+#---------------------------------------------------------------------------------------------------------------------------
+#                    Create a summary of gross income tax liability _(prior to deductions and offsets)_                    -
+#                                  Plot 1 (p1) shows the [NEED TO SEE IF PIT_NO_TFT_MEAN                                   -
+#   IS THE ADDITIONAL TAX PAYABLE IN THE ABSENCE OF A TFT OR THE TOTAL AVERAGE TAX (WHICH INCLUDES WITH ABSENCE OF A TFT]  -
+#---------------------------------------------------------------------------------------------------------------------------
 indiv_summary_YoY <- indiv_tax_stats %>%
   group_by(income_year, sex, age_range, taxable_status) %>%
   summarise(
-    pit_tft_mean               = mean(pit_tft, na.rm = TRUE),
-    pit_no_tft_mean            = mean(pit_no_tft, na.rm = TRUE)) %>%
-  mutate(
-    tft_diff_non_taxable_excld = case_when(
-      taxable_status == "Taxable" ~ pit_no_tft_mean - pit_tft_mean,
-      TRUE                        ~ 0
-    ),
-    tft_diff_non_taxable_incld =  pit_no_tft_mean - pit_tft_mean
-  )
+    pit_tft_mean      = mean(pit_tft, na.rm = TRUE),
+    pit_no_tft_mean   = mean(pit_no_tft, na.rm = TRUE),
+    pit_tft_diff_mean = mean(pit_tft_diff, na.rm = TRUE))
+  # mutate(
+  #   tft_diff_non_taxable_excld = case_when(
+  #     taxable_status == "Taxable" ~ pit_no_tft_mean - pit_tft_mean,
+  #     TRUE                        ~ 0
+  #   ),
+  #   tft_diff_non_taxable_incld =  pit_no_tft_mean - pit_tft_mean
+  # )
 
 
 # Graphing the results ##-- I don't think that the addition of
@@ -109,7 +124,9 @@ ggplot(p1_data, aes(x = income_year, y = val, fill = var)) +
   )
 
 
-# Plot 2 (p2) shows the _additional_ gross income that would be included in the income tax calculation if the tft were removed.
+#---------------------------------------------------------------------------------------------------------------------------------
+#  Plot 2 (p2) shows the _additional_ gross income that would be included in the income tax calculation if the tft were removed  -
+#---------------------------------------------------------------------------------------------------------------------------------
 p2_data <- indiv_summary_YoY %>%
   group_by(income_year, sex, age_range) %>%
   summarise(difference_bt_tft_and_no_tft = mean(tft_diff_non_taxable_incld))
@@ -119,17 +136,14 @@ p2_data <- indiv_summary_YoY %>%
 # $511.30 _more income than men_ (this is a relative proposition) included in their income tax calculation.
 p2_data %>%
   spread(sex, difference_bt_tft_and_no_tft) %>%
-  mutate(gender_diff = Male - Female,
-         colour1 = case_when(
-           gender_diff <= 0 ~ "deeppink3",
-           TRUE             ~ "royalblue3"
-         )) %>%
-  select(-Female, -Male, -colour1) %>%
+  mutate(gender_diff = Male - Female) %>%
+  select(-Female, -Male) %>%
   group_by(income_year) %>%
   summarise(
     life_time_benefit = mean(gender_diff)
   ) %>%
-  adorn_totals("row")
+  adorn_totals("row") %>%
+  as_tibble()
 
 #
 p2_data %>%
@@ -143,7 +157,7 @@ p2_data %>%
                spread(sex, difference_bt_tft_and_no_tft) %>%
                mutate(gender_diff = Male - Female), aes(y = gender_diff), shape = 95, stroke = 3) +
   facet_grid(cols = vars(age_range)) +
-  scale_y_continuous(labels = scales::dollar) +
+  scale_y_continuous(labels = c("$2,000", "$1,000", "$0", "$1,000", "$2,000")) +
   theme_light() +
   theme(
     legend.position = 'none',
@@ -155,8 +169,8 @@ p2_data %>%
     x = "",
     y = "",
     title = "Gender impact of removing the $18,200 tax free threshold",
-    subtitle = "On average, women of all age groups would have brought $511.30 more gross income to tax than men",
-    caption = "Source: Tax Framework Division; Tax Stats (2017) - Individuals table 2B"
+    subtitle = "On average, women would have brought an average of $511.30 more gross income to tax than men",
+    caption = "Source: Tax Stats (2017) - Individuals table 2B"
   ) +
   scale_fill_manual(values = c("deeppink1", "royalblue3"))
 
@@ -186,27 +200,3 @@ p2_data %>%
     subtitle = "Women benefit much more than men and pink greater claims by women"
     ) +
   scale_fill_manual(values = c("deeppink1", "royalblue3"))
-
-#__________
-
-
-
-ggplot(p2_data, aes(x = income_year, y = difference_bt_tft_and_no_tft)) +
-  geom_bar(stat = 'identity') +
-  facet_grid(rows = vars(sex), cols = vars(age_range)) +
-  scale_y_continuous(labels = scales::dollar,
-                     expand = expand_scale(add = c(0, 500)),
-                     breaks = seq(from = 500, to = 2000, by = 500),
-                     ) +
-  theme_light() +
-  theme(
-    axis.text.x = element_text(angle = 90, vjust = 0.4),
-    panel.grid.minor.y = element_blank(),
-    panel.grid.major.x = element_blank()
-  ) +
-  labs(
-    x = "",
-    y = "",
-
-  )
-
