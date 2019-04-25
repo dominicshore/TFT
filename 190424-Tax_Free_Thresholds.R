@@ -61,15 +61,17 @@ indiv_tax_stats %>%
     title = "Distribution of 'Non Taxable' tax payers"
   )
 
-# It turns out that the Baby Boomers are at the tail of that distrubtion
+# It turns out that a small number of Baby Boomers are at the tail of that distrubtion
 # ( >$18,200 threshold of "Non Taxable").
 indiv_tax_stats %>%
   filter(taxable_status == "Non Taxable", avg_sal_and_wage >18200) %>%
   group_by(state_territory, age_range) %>%
   tally()
 
-# Creating a summary of gross income tax liability __(prior to deductions and offsets)__
-# Also, cleaning the names of the age cohorts by removing prefixes
+#----------------------------------------------------------------------------------------
+#  Create a summary of gross income tax liability _(prior to deductions and offsets)_   -
+#                 Clean the names of the age cohorts by removing prefixes               -
+#----------------------------------------------------------------------------------------
 indiv_summary_YoY <- indiv_tax_stats %>%
   group_by(income_year, sex, age_range, taxable_status) %>%
   summarise(
