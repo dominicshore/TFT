@@ -24,23 +24,96 @@ names(indiv_tax_stats_raw) <- names(indiv_tax_stats_raw) %>%
 
 indiv_tax_stats <- indiv_tax_stats_raw %>%
   mutate(
+    #variable created to break the total down to the individual level
     avg_sal_and_wage = salary_or_wages / salary_or_wages_no,
-    #adding variables showing with and without tft
+
+    # Adding variable calculating gross tax liability with the tft
+    # pit_tft includes current tft settings
     pit_tft = case_when(
-      avg_sal_and_wage <= 18000 ~ 0,
-      avg_sal_and_wage <= 37000 ~ ((avg_sal_and_wage - 18201) * 0.1900),
-      avg_sal_and_wage <= 90000 ~ ((avg_sal_and_wage - 37001) * 0.3250) + 3572,
+      avg_sal_and_wage <= 18200  ~ 0,
+      avg_sal_and_wage <= 37000  ~ ((avg_sal_and_wage - 18201) * 0.1900),
+      avg_sal_and_wage <= 90000  ~ ((avg_sal_and_wage - 37001) * 0.3250) + 3572,
       avg_sal_and_wage <= 180000 ~ ((avg_sal_and_wage - 90001) * 0.3700) + 20797,
       TRUE ~ ((avg_sal_and_wage - 180001) * 0.4500) + 54097),
+
+    # Adding an additional factor to show which tax bracket this cohort fall into and factoring properly
+    bracket = case_when(
+      avg_sal_and_wage <= 18200  ~ "0 – $18,200",
+      avg_sal_and_wage <= 37000  ~ "$18,201 – $37,000",
+      avg_sal_and_wage <= 90000  ~ "$37,001 – $90,000",
+      avg_sal_and_wage <= 180000 ~ "$90,001 – $180,000",
+      TRUE ~ "$180,001 and over"
+    ) %>% factor(levels = c("0 – $18,200", "$18,201 – $37,000", "$37,001 – $90,000", "$90,001 – $180,000", "$180,001 and over"), ordered = TRUE),
+
+    # Adding variable calculating fross tax liability without the tft
     pit_no_tft = case_when(
       avg_sal_and_wage <= 37000 ~ (avg_sal_and_wage * 0.1900),
       avg_sal_and_wage <= 90000 ~ ((avg_sal_and_wage - 37001) * 0.3250) + 7030,
       avg_sal_and_wage <= 180000 ~ ((avg_sal_and_wage - 90001) * 0.3700) + 24255,
       TRUE ~ ((avg_sal_and_wage - 180001) * 0.4500) + 57555),
-    age_range = factor(str_remove_all(age_range, pattern = "[a-z][.] "), ordered = TRUE) %>% fct_shift(n = -1L),
-    pit_tft_diff = pit_no_tft - pit_tft
+
+    # Refactoring the age range variable to play nicely in r
+    age_range           = factor(str_remove_all(age_range, pattern = "[a-z][.] "), ordered = TRUE) %>% fct_shift(n = -1L),
+    pit_tft_diff        = pit_no_tft - pit_tft,
+
+    #These variables build up the individual level calculations to a total level using the number of taxpayers in each cohort
+    total_pit_tft       = pit_tft * salary_or_wages_no,
+    total_pit_no_tft    = pit_no_tft * salary_or_wages_no,
+    total_pit_tft_diff  = pit_tft_diff * salary_or_wages_no
     ) %>%
-  select(1, 3:6, avg_sal_and_wage, pit_tft, pit_no_tft, pit_tft_diff)
+  select(1, 3:6, avg_sal_and_wage, bracket, pit_tft, pit_no_tft, pit_tft_diff, salary_or_wages, salary_or_wages_no, total_pit_tft, total_pit_no_tft, total_pit_tft_diff)
+
+
+##-------------------------------------------------------------------------
+##              Summary of data in 2B by income tax bracket              --
+##  How much extra revenue would be collected in each bracket sans tft?  --
+##-------------------------------------------------------------------------
+indiv_tax_stats %>%
+  filter(income_year == "2015–16") %>%
+  group_by(bracket) %>%
+  tally(wt = salary_or_wages_no, name = "tax_payers") %>%
+  mutate(
+    extra_revenue  = tax_payers * 3458
+         ) %>%
+  ggplot(aes(x = bracket, y = extra_revenue/1000000000, fill = bracket)) +
+    geom_col() +
+    scale_y_continuous(labels = scales::dollar) +
+    labs(
+      x = "",
+      y = "Additional Revenue ($bn)",
+      title = "Removing the Tax Free Threshold",
+      subtitle = "Additional revenue collected by tax bracket",
+      caption = "Source: Tax Stats (2017) - Individuals table 2B"
+    ) +
+  theme_light() +
+  theme(
+    legend.position = 'none'
+    )
+
+
+##------------------------------------------------------------------------------------
+##                    Graph of all incomes in the 2B sample file                    --
+##  The income outliers all show their 'state_territory' variable as 'Overseas'...  --
+##------------------------------------------------------------------------------------
+p0_total_dist <- indiv_tax_stats %>%
+  ggplot(aes(x = avg_sal_and_wage)) +
+  geom_histogram(binwidth = 1000, fill = "lightblue") +
+  geom_vline(xintercept = c(18200), colour = c("red"), linetype = "dashed") +
+  theme_light() +
+  scale_x_continuous(labels = scales::dollar, expand = expand_scale(add = c(0, 0)), breaks = c(18200, 50000, 100000)) +
+  scale_y_continuous(expand = expand_scale(add = c(0, 20))) +
+  labs(
+    x = "",
+    y = "",
+    title = "Distribution of income in Tax Stats sample file",
+    subtitle = "Over the 2010-11 to 2016-17 income years",
+    caption = c
+  ) +
+  theme(
+    panel.grid = element_blank()
+  )
+
+
 
 #----------------------------------------------------------------
 #    What does the distribution of 'Non Taxable' look like?     -
@@ -83,8 +156,6 @@ indiv_tax_stats %>%
 
 #---------------------------------------------------------------------------------------------------------------------------
 #                    Create a summary of gross income tax liability _(prior to deductions and offsets)_                    -
-#                                  Plot 1 (p1) shows the [NEED TO SEE IF PIT_NO_TFT_MEAN                                   -
-#   IS THE ADDITIONAL TAX PAYABLE IN THE ABSENCE OF A TFT OR THE TOTAL AVERAGE TAX (WHICH INCLUDES WITH ABSENCE OF A TFT]  -
 #---------------------------------------------------------------------------------------------------------------------------
 indiv_summary_YoY <- indiv_tax_stats %>%
   group_by(income_year, sex, age_range, taxable_status) %>%
@@ -92,27 +163,19 @@ indiv_summary_YoY <- indiv_tax_stats %>%
     pit_tft_mean      = mean(pit_tft, na.rm = TRUE),
     pit_no_tft_mean   = mean(pit_no_tft, na.rm = TRUE),
     pit_tft_diff_mean = mean(pit_tft_diff, na.rm = TRUE))
-  # mutate(
-  #   tft_diff_non_taxable_excld = case_when(
-  #     taxable_status == "Taxable" ~ pit_no_tft_mean - pit_tft_mean,
-  #     TRUE                        ~ 0
-  #   ),
-  #   tft_diff_non_taxable_incld =  pit_no_tft_mean - pit_tft_mean
-  # )
 
 
 # Graphing the results ##-- I don't think that the addition of
 # __tft_diff_non_taxable_excld__ is adding value to the analysis here
 p1_data <- indiv_summary_YoY %>%
-  select(1:3, 6:7) %>%
+  select(1:3, 5:7) %>%
   gather("var", "val", -1, -2, -3)
 
-ggplot(p1_data, aes(x = income_year, y = val, fill = var)) +
+p1 <- ggplot(p1_data, aes(x = income_year, y = val, fill = var)) +
   geom_bar(stat = 'identity') +
-  facet_grid(rows = vars(sex), cols = vars(age_range)) +
+  facet_grid(rows = vars(var), cols = vars(age_range)) +
   scale_y_continuous(labels = scales::dollar,
-                     expand = expand_scale(add = c(0, 500)),
-                     breaks = c(5000, 10000, 15000, 20000)) +
+                     expand = expand_scale(add = c(0, 500))) +
   scale_x_discrete() +
   theme_light() +
   theme(
@@ -129,11 +192,11 @@ ggplot(p1_data, aes(x = income_year, y = val, fill = var)) +
 #---------------------------------------------------------------------------------------------------------------------------------
 p2_data <- indiv_summary_YoY %>%
   group_by(income_year, sex, age_range) %>%
-  summarise(difference_bt_tft_and_no_tft = mean(tft_diff_non_taxable_incld))
+  summarise(difference_bt_tft_and_no_tft = mean(pit_tft_diff_mean))
 
-# INTERSTING ASIDE ONE: Females benefit more than males from the presence of the tft. On average, over the period 2010-11 to 2016-17,
-# when the additional gross income from the elimination of the tft is assessed by sex, females would have
-# $511.30 _more income than men_ (this is a relative proposition) included in their income tax calculation.
+# INTERSTING ASIDE ONE: Males benefit more than females from the presence of the tft. On average, over the period 2010-11 to 2016-17,
+# when the additional gross income from the elimination of the tft is assessed by sex, males would have paid
+# $583 more tax _than women_.
 p2_data %>%
   spread(sex, difference_bt_tft_and_no_tft) %>%
   mutate(gender_diff = Male - Female) %>%
@@ -146,7 +209,7 @@ p2_data %>%
   as_tibble()
 
 #
-p2_data %>%
+p2 <- p2_data %>%
   mutate(
     difference_bt_tft_and_no_tft = case_when(sex == "Female" ~ difference_bt_tft_and_no_tft * -1L,
                                              TRUE            ~ difference_bt_tft_and_no_tft)
@@ -169,13 +232,13 @@ p2_data %>%
     x = "",
     y = "",
     title = "Gender impact of removing the $18,200 tax free threshold",
-    subtitle = "On average, women would have brought an average of $511.30 more gross income to tax than men",
+    subtitle = "On average, men would have paid an $583 more than women over the 2010-11 - 2016-17 period without the TFT",
     caption = "Source: Tax Stats (2017) - Individuals table 2B"
   ) +
   scale_fill_manual(values = c("deeppink1", "royalblue3"))
 
-# INTERSTING ASIDE ONE: This plot shows the gender distribution of the elimination of the tft
-p2_data %>%
+# INTERSTING ASIDE ONE: This plot shows the _net_ gender distribution of the elimination of the tft
+p3 <- p2_data %>%
   spread(sex, difference_bt_tft_and_no_tft) %>%
   mutate(gender_diff = Male - Female,
          colour1 = case_when(
@@ -196,7 +259,22 @@ p2_data %>%
   labs(
     x = "",
     y = "",
-    title = "Gender impact of TFT removal",
-    subtitle = "Women benefit much more than men and pink greater claims by women"
+    title = "Tax paid in excess of the other sex after TFT removal",
+    subtitle = "Additional tax paid by men (blue) or women (pink) without the TFT"
     ) +
   scale_fill_manual(values = c("deeppink1", "royalblue3"))
+
+
+##################################################################
+##          How much income would need to be returned?          ##
+##                 Low-income variously defined                 ##
+##################################################################
+
+indiv_tax_stats %>%
+  group_by(bracket) %>%
+  summarise(
+    "Total Additional Tax" = sum(total_pit_tft_diff, na.rm = TRUE)
+  ) %>%
+  ggplot(aes(x = bracket, y = `Total Additional Tax`)) +
+  geom_col() +
+  scale_y_continuous(labels = scales::dollar)
