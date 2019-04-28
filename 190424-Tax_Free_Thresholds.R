@@ -75,22 +75,24 @@ indiv_tax_stats %>%
   ggplot(aes(x = bracket, y = tax_payers, fill = bracket)) +
   geom_col() +
   geom_text(
-    aes(label = format(tax_payers, big.mark = ","), colour = bracket, fontface = "bold", y = tax_payers + 10000),
+    aes(label = format(tax_payers, big.mark = ","), colour = bracket, y = tax_payers + 10000),
     vjust = -0.5
   ) +
-  scale_y_continuous(labels = scales::comma, expand = expand_scale(mult = c(0, 0.1))) +
+  scale_y_continuous(scales::comma, expand = expand_scale(mult = c(0, 0.1))) +
     labs(
       x = "",
-      y = "Count",
-      title = "Tax Stats by the numbers",
-      subtitle = "How many people fall in each tax bracket in the 2016–17 income year?",
+      y = "",
+      title = "How many people fall in each tax bracket in the 2016–17 income year?",
       caption = "Source: Tax Stats (2017) - Individuals table 2B"
     ) +
   theme_light() +
   theme(
     legend.position = 'none',
-    panel.grid.minor =  element_blank(),
-    panel.grid.major.x = element_blank()
+    panel.grid =  element_blank(),
+    panel.grid.major.x = element_blank(),
+    axis.title.y=element_blank(),
+    axis.text.y=element_blank(),
+    axis.ticks.y=element_blank()
     )
 
 ##################################################################
