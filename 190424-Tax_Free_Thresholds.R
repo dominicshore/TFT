@@ -61,35 +61,73 @@ indiv_tax_stats <- indiv_tax_stats_raw %>%
     total_pit_no_tft    = pit_no_tft * salary_or_wages_no,
     total_pit_tft_diff  = pit_tft_diff * salary_or_wages_no
     ) %>%
-  select(1, 3:6, avg_sal_and_wage, bracket, pit_tft, pit_no_tft, pit_tft_diff, salary_or_wages, salary_or_wages_no, total_pit_tft, total_pit_no_tft, total_pit_tft_diff)
+  select(1, 3:6, avg_sal_and_wage, bracket, number_of_individuals_no, pit_tft, pit_no_tft, pit_tft_diff, salary_or_wages, salary_or_wages_no, total_pit_tft, total_pit_no_tft, total_pit_tft_diff)
 
 
-##-------------------------------------------------------------------------
-##              Summary of data in 2B by income tax bracket              --
-##  How much extra revenue would be collected in each bracket sans tft?  --
-##-------------------------------------------------------------------------
+##---------------------------------------------------------------
+##         Summary of data in 2B by income tax bracket         --
+##          HOw many people fall in each tax bracket?          --
+##---------------------------------------------------------------
 indiv_tax_stats %>%
-  filter(income_year == "2015–16") %>%
+  filter(income_year == "2016–17") %>%
   group_by(bracket) %>%
-  tally(wt = salary_or_wages_no, name = "tax_payers") %>%
-  mutate(
-    extra_revenue  = tax_payers * 3458
-         ) %>%
-  ggplot(aes(x = bracket, y = extra_revenue/1000000000, fill = bracket)) +
-    geom_col() +
-    scale_y_continuous(labels = scales::dollar) +
+  tally(number_of_individuals_no, name = "tax_payers") %>%
+  ggplot(aes(x = bracket, y = tax_payers, fill = bracket)) +
+  geom_col() +
+  geom_text(
+    aes(label = format(tax_payers, big.mark = ","), colour = bracket, fontface = "bold", y = tax_payers + 10000),
+    vjust = -0.5
+  ) +
+  scale_y_continuous(labels = scales::comma, expand = expand_scale(mult = c(0, 0.1))) +
     labs(
       x = "",
-      y = "Additional Revenue ($bn)",
-      title = "Removing the Tax Free Threshold",
-      subtitle = "Additional revenue collected by tax bracket",
+      y = "Count",
+      title = "Tax Stats by the numbers",
+      subtitle = "How many people fall in each tax bracket in the 2016–17 income year?",
       caption = "Source: Tax Stats (2017) - Individuals table 2B"
     ) +
   theme_light() +
   theme(
-    legend.position = 'none'
+    legend.position = 'none',
+    panel.grid.minor =  element_blank(),
+    panel.grid.major.x = element_blank()
     )
 
+##################################################################
+##          How much income would need to be returned?          ##
+##                 Low-income variously defined                 ##
+##################################################################
+indiv_tax_stats %>%
+  group_by(income_year, bracket) %>%
+  summarise(
+    "Total Additional Tax" = sum(total_pit_tft_diff/1000000000, na.rm = TRUE)
+  ) %>%
+  ggplot(aes(x = bracket, y = `Total Additional Tax`, fill = bracket)) +
+  geom_col() +
+  geom_text(
+    aes(label = format(round(`Total Additional Tax`, 1), big.mark = ","), colour = bracket, fontface = "bold", y = `Total Additional Tax`),
+    vjust = -0.5
+  ) +
+  facet_grid(cols = vars(income_year)) +
+  scale_y_continuous(
+    labels = scales::dollar,
+    expand = expand_scale(mult = c(0, 0.1)),
+    breaks = c(10, 15, 20, 25)
+    ) +
+  labs(
+    x = "",
+    y = "Additional Revenue ($bn)",
+    title = "Removing the Tax Free Threshold",
+    subtitle = "Additional revenue collected by tax bracket over period 2010–11 to 2016–17",
+    caption = "Source: Tax Stats (2017) - Individuals table 2B"
+  ) +
+  theme_light() +
+  theme(
+    legend.position = 'none',
+    axis.text.x = element_text(angle = 90, vjust = 0.4, hjust = 1),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_blank()
+  )
 
 ##------------------------------------------------------------------------------------
 ##                    Graph of all incomes in the 2B sample file                    --
@@ -100,14 +138,14 @@ p0_total_dist <- indiv_tax_stats %>%
   geom_histogram(binwidth = 1000, fill = "lightblue") +
   geom_vline(xintercept = c(18200), colour = c("red"), linetype = "dashed") +
   theme_light() +
-  scale_x_continuous(labels = scales::dollar, expand = expand_scale(add = c(0, 0)), breaks = c(18200, 50000, 100000)) +
+  scale_x_continuous(labels = scales::dollar, expand = expand_scale(add = c(0, 0)), breaks = c(18200, 50000, 100000, 150000)) +
   scale_y_continuous(expand = expand_scale(add = c(0, 20))) +
   labs(
     x = "",
     y = "",
     title = "Distribution of income in Tax Stats sample file",
     subtitle = "Over the 2010-11 to 2016-17 income years",
-    caption = c
+    caption = "Source: Tax Stats (2017) - Individuals table 2B"
   ) +
   theme(
     panel.grid = element_blank()
@@ -265,16 +303,4 @@ p3 <- p2_data %>%
   scale_fill_manual(values = c("deeppink1", "royalblue3"))
 
 
-##################################################################
-##          How much income would need to be returned?          ##
-##                 Low-income variously defined                 ##
-##################################################################
 
-indiv_tax_stats %>%
-  group_by(bracket) %>%
-  summarise(
-    "Total Additional Tax" = sum(total_pit_tft_diff, na.rm = TRUE)
-  ) %>%
-  ggplot(aes(x = bracket, y = `Total Additional Tax`)) +
-  geom_col() +
-  scale_y_continuous(labels = scales::dollar)
