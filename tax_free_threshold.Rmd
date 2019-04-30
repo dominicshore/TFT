@@ -19,13 +19,21 @@ options(htmltools.dir.version = FALSE)
 ```
 
 # Introduction
-I am writting a Tax Primer on the Tax Free Threshold (TFT) to provide a high level overview of the policy along with some broad conclusions about the desirability of its role in a future tax system. The current policy settings where implemented^[Clean Energy (Income Tax Rates Amendments) Bill 2011] in the context of the Gillard Government's Carbon Polultion Reduction Scheme. The increase in the TFT and marginal rate schdule were part of a package of measures designed to ensure that the average low and middle-income earners were not financially disadvantaged by the introduction of the carbon pricing mechanism. The changes to the tax system were informed by the Australia's Future Tax System report 
+I am writting a Tax Primer with the aim of shedding some light on the Tax Free Threshold (TFT). That has enabled me to do some reading about the policy, its objectives, and attempt to quantify its impact. This note collects that thinking and analysis, such as it is. 
+
+The TFT is serves the dual purpose in the tax system of reducing  the number of taxpayers brought into various aspects of the system while enhacing progressivity. While I will attept to cover both dimensions, this note primarily sets out my efforts to quantify the impact of the TFT and particularly the distribution of benefits flowing from the tax expenditure.
+
+## Progressivity
+`r newthought("")`
+
+
+The current TFT was set^[Clean Energy (Income Tax Rates Amendments) Bill 2011] in the context of the Gillard Government's roll out of the Carbon Polultion Reduction Scheme. The increase in the TFT and marginal rate schdule were part of a package of measures designed to ensure that the average low and middle-income earners were not financially disadvantaged by the introduction of the carbon pricing mechanism. The changes to the tax system were informed by the Australia's Future Tax System report 
 
 1. eliminate the necessity for some interactions with the tax system where tax payer incomes are very low;  and
 1. provide 
 
 I was interested to explore the varous facets of the TFT as concretely as I could so the [most recent release](https://www.ato.gov.au/About-ATO/Research-and-statistics/In-detail/Taxation-statistics/Taxation-statistics-2016-17/) of Taxation Statistics by the Australian Taxation Office (ATO) seemed an obvious place to start. While there remains a question about the extent to which the data has been modified to comply with the taxpayer secrecy provisions (primarily to be found in Div 355 _Taxation Administration Act_ 1953) what follows will hopefully provide some useful estimates of:
-1. the distribution of the benefit 
+1. the distribution of the benefit  
 
 # This note is about the cost of Tax Free Threshold
 This note uses the [most recent release](https://www.ato.gov.au/About-ATO/Research-and-statistics/In-detail/Taxation-statistics/Taxation-statistics-2016-17/) of Taxation Statistics by the Australian Taxation Office. Taxation statistics is an annual publication that presents an overview of the statistics relating to the different taxes  administered by the Australian Taxation Office (ATO). The  relates to data collected on the 2016–17 income year for individuals, companies, superannuation funds, partnerships and trusts.
