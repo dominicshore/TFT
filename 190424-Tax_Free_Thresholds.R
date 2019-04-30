@@ -38,12 +38,12 @@ indiv_tax_stats <- indiv_tax_stats_raw %>%
 
     # Adding an additional factor to show which tax bracket this cohort fall into and factoring properly
     bracket = case_when(
-      avg_sal_and_wage <= 18200  ~ "0 –- $18,200",
-      avg_sal_and_wage <= 37000  ~ "$18,201 –- $37,000",
-      avg_sal_and_wage <= 90000  ~ "$37,001 –- $90,000",
-      avg_sal_and_wage <= 180000 ~ "$90,001 –- $180,000",
+      avg_sal_and_wage <= 18200  ~ "0 – $18,200",
+      avg_sal_and_wage <= 37000  ~ "$18,201 – $37,000",
+      avg_sal_and_wage <= 90000  ~ "$37,001 – $90,000",
+      avg_sal_and_wage <= 180000 ~ "$90,001 – $180,000",
       TRUE ~ "$180,001 and over"
-    ) %>% factor(levels = c("0 –- $18,200", "$18,201 –- $37,000", "$37,001 -– $90,000", "$90,001 –- $180,000", "$180,001 and over"), ordered = TRUE),
+    ) %>% factor(levels = c("0 – $18,200", "$18,201 – $37,000", "$37,001 – $90,000", "$90,001 – $180,000", "$180,001 and over"), ordered = TRUE),
 
     # Adding variable calculating fross tax liability without the tft
     pit_no_tft = case_when(
@@ -60,8 +60,9 @@ indiv_tax_stats <- indiv_tax_stats_raw %>%
     total_pit_tft       = pit_tft * salary_or_wages_no,
     total_pit_no_tft    = pit_no_tft * salary_or_wages_no,
     total_pit_tft_diff  = pit_tft_diff * salary_or_wages_no
-    ) %>%
-      select(1, 3:6, bracket, number_of_individuals_no, pit_tft, pit_no_tft, pit_tft_diff, salary_or_wages, salary_or_wages_no, total_pit_tft, total_pit_no_tft, total_pit_tft_diff)
+  ) %>%
+  select(1, 3:6, avg_sal_and_wage, bracket, number_of_individuals_no, pit_tft, pit_no_tft, pit_tft_diff, salary_or_wages, salary_or_wages_no, total_pit_tft, total_pit_no_tft, total_pit_tft_diff)
+
 
 
 ##---------------------------------------------------------------
