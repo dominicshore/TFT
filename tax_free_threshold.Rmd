@@ -8,24 +8,176 @@ link-citations: yes
 ---
 
 ```{r setup, include=FALSE}
+# load packages used in this note
 library("tidyverse") # requires dplyr ver 0.8.0.1
 library("readxl")    # requires readxl ver 1.3.1
 library("janitor")   # requires janitor ver 1.2.0
 library("bannerCommenter") # not required
+library("ggrepel")
 library("tint")
+
 # invalidate cache when the package version changes
-knitr::opts_chunk$set(tidy = FALSE, cache.extra = packageVersion('tint'))
-options(htmltools.dir.version = FALSE)
+knitr::opts_chunk$set(tidy = TRUE, cache.extra = packageVersion('tint'), echo=FALSE, warning=FALSE, message=FALSE)
+options(htmltools.dir.version = FALSE, encoding = "UTF-8")
+
 ```
+
+
+```{r Data Munging, include=FALSE}
+#-----------------------------------------------------------------------------
+#  Local path to Excel file containing 2017 Tax Stats individuals table 2B   -
+#      Import annual (2010-11 to 2016-17) file with janitor name repair      -
+#             Remove residual footnote numbers in variable names             -
+#-----------------------------------------------------------------------------
+
+file_name <- "./ts17individual02lodgmentmethodsextaxablestatusstateageyear.xlsx"
+
+indiv_tax_stats_raw <- read_excel(path = file_name, sheet = "Individuals Table 2B", skip = 2, .name_repair = make_clean_names)
+
+names(indiv_tax_stats_raw) <- names(indiv_tax_stats_raw) %>%
+  str_remove_all(pattern = "[0-9]+")
+
+#-----------------------------------------------------------------------------------------------------
+#              Calculate _average taxable income_ and _total income or loss_ per cohort              -
+#   Add personal income tax payable with (pit_tft) and without (pit_no_tft) the tax free threshold   -
+#                           Remove letters preceding age cohort descriptors                          -
+#-----------------------------------------------------------------------------------------------------
+
+indiv_tax_stats <- indiv_tax_stats_raw %>%
+  mutate(
+    #variable created to break the total down to the individual level
+    avg_sal_and_wage = salary_or_wages / salary_or_wages_no,
+
+    # Adding variable calculating gross tax liability with the tft
+    # pit_tft includes current tft settings
+    pit_tft = case_when(
+      avg_sal_and_wage <= 18200  ~ 0,
+      avg_sal_and_wage <= 37000  ~ ((avg_sal_and_wage - 18201) * 0.1900),
+      avg_sal_and_wage <= 90000  ~ ((avg_sal_and_wage - 37001) * 0.3250) + 3572,
+      avg_sal_and_wage <= 180000 ~ ((avg_sal_and_wage - 90001) * 0.3700) + 20797,
+      TRUE ~ ((avg_sal_and_wage - 180001) * 0.4500) + 54097),
+
+    # Adding an additional factor to show which tax bracket this cohort fall into and factoring properly
+    bracket = case_when(
+      avg_sal_and_wage <= 18200  ~ "$0 - $18,200",
+      avg_sal_and_wage <= 37000  ~ "$18,201 - $37,000",
+      avg_sal_and_wage <= 90000  ~ "$37,001 - $90,000",
+      avg_sal_and_wage <= 180000 ~ "$90,001 - $180,000",
+      TRUE ~ "$180,001 and over"
+    ) %>% factor(levels = c("$0 - $18,200", "$18,201 - $37,000", "$37,001 - $90,000", "$90,001 - $180,000", "$180,001 and over"), ordered = TRUE),
+
+    # Adding variable calculating fross tax liability without the tft
+    pit_no_tft = case_when(
+      avg_sal_and_wage <= 37000 ~ (avg_sal_and_wage * 0.1900),
+      avg_sal_and_wage <= 90000 ~ ((avg_sal_and_wage - 37001) * 0.3250) + 7030,
+      avg_sal_and_wage <= 180000 ~ ((avg_sal_and_wage - 90001) * 0.3700) + 24255,
+      TRUE ~ ((avg_sal_and_wage - 180001) * 0.4500) + 57555),
+
+    # Refactoring the age range variable to play nicely in r
+    age_range           = factor(str_remove_all(age_range, pattern = "[a-z][.] "), ordered = TRUE) %>% fct_shift(n = -1L),
+    pit_tft_diff        = pit_no_tft - pit_tft,
+
+    #These variables build up the individual level calculations to a total level using the number of taxpayers in each cohort
+    total_pit_tft       = pit_tft * salary_or_wages_no,
+    total_pit_no_tft    = pit_no_tft * salary_or_wages_no,
+    total_pit_tft_diff  = pit_tft_diff * salary_or_wages_no
+  ) %>%
+  select(1, 3:6, avg_sal_and_wage, bracket, number_of_individuals_no, pit_tft, pit_no_tft, pit_tft_diff, salary_or_wages, salary_or_wages_no, total_pit_tft, total_pit_no_tft, total_pit_tft_diff)
+
+###########################################################################
+###########################################################################
+###                                                                     ###
+###                THE TAX FREE THRESHOLD: PROGRESSIVITY                ###
+###                                                                     ###
+###########################################################################
+###########################################################################
+
+
+##--------------------------------------------------------------
+##  How does the presence of the TFT affect Average Tax Rates?
+##--------------------------------------------------------------
+indiv_tax_stats %>%
+  group_by(bracket) %>%
+  summarise(
+    avg_tax_paid_with_tft = mean(pit_tft, na.rm = T),
+    avg_tax_paid_without_tft = mean(pit_no_tft, na.rm = T)
+  )
+
+avg_rates_data <- tibble(
+  income = seq(from = 1, to = 200000, by = 100),
+  pit_with_tft = case_when(
+    income <= 18200  ~ 0,
+    income <= 37000  ~ ((income - 18201) * 0.1900),
+    income <= 90000  ~ ((income - 37001) * 0.3250) + 3572,
+    income <= 180000 ~ ((income - 90001) * 0.3700) + 20797,
+    TRUE ~ ((income - 180001) * 0.4500) + 54097),
+  pit_without_tft = case_when(
+    income <= 37000 ~ (income * 0.1900),
+    income <= 90000 ~ ((income - 37001) * 0.3250) + 7030,
+    income <= 180000 ~ ((income - 90001) * 0.3700) + 24255,
+    TRUE ~ ((income - 180001) * 0.4500) + 57555),
+  ATR_with_tft    = pit_with_tft / income,
+  ATR_without_tft = pit_without_tft / income
+)
+
+```
+
 
 # Introduction
 I am writting a Tax Primer with the aim of shedding some light on the Tax Free Threshold (TFT). That has enabled me to do some reading about the policy, its objectives, and attempt to quantify its impact. This note collects that thinking and analysis, such as it is. 
 
-The TFT is serves the dual purpose in the tax system of reducing  the number of taxpayers brought into various aspects of the system while enhacing progressivity. While I will attept to cover both dimensions, this note primarily sets out my efforts to quantify the impact of the TFT and particularly the distribution of benefits flowing from the tax expenditure.
+The TFT is serves the dual purpose in the tax system of reducing  the number of taxpayers brought into various aspects of the system while enhacing progressivity. While I attept to cover both dimensions, this note primarily sets out my efforts to quantify the impact of the TFT and particularly the distribution of benefits flowing from the tax expenditure.
 
-## Progressivity
-`r newthought("")`
+`r newthought("How does the presence")` of the TFT affect Average Tax Rates (ATR)? The addition of the maximum \$3,458.00 (\$18,200 x 19%) to the gross tax of a man earning \$18,201 dollars per annum obviously has a greater impact than that of the man earning \$180,000. 
 
+```{r fig-ATRs, fig.margin = TRUE, fig.cap = "Illistration of the impact that the tax free threshold has on average tax rates", fig.width=3.5, fig.height=3.5, cache=TRUE}
+
+avg_rates_data %>%
+  select(
+    income,
+    ATR_with_tft,
+    ATR_without_tft
+  ) %>%
+  gather(key = ATR, value = value, - income) %>%
+  mutate(ATR_label = case_when(income == 100001 & ATR == "ATR_with_tft" ~ "with TFT",
+                               income == 125001 & ATR == "ATR_without_tft" ~ "without TFT",
+                               TRUE ~ NA_character_)
+  ) %>%
+  ggplot(aes(x = income, y = value, colour = ATR)) +
+  geom_hline(yintercept = 0, colour = "black") +
+  geom_line(size = 1.5) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1), expand = expand_scale(c(0, 0.1))) +
+  scale_x_continuous(labels = scales::dollar, expand = expand_scale(c(0, 0))) +
+  theme_light() +
+  labs(
+    x = "",
+    y = "",
+    title = "Average Tax Rates",
+    caption = "Source: Tax Framework Division"
+  ) +
+  theme(
+    legend.position = 'none'
+  ) +
+  geom_text(aes(x = 120000, y = 0.325), label = "Without TFT") +
+  geom_text(aes(x = 150000, y = 0.25), label = "With TFT", colour = "#F8766D")
+
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE} 
+knitr::kable(x = 
+  indiv_tax_stats %>% 
+    group_by(bracket) %>% 
+    summarise(
+      avg_tax_paid_with_tft = mean(pit_tft, na.rm = T),
+      avg_tax_paid_without_tft = mean(pit_no_tft, na.rm = T)
+    ), 
+    digits = 0,
+    format.args = c(big.mark = ","),
+    col.names = c("Tax Bracket", "with TFT", "without TFT"),
+    caption =  "Average Tax paid" 
+  )
+
+```
 
 The current TFT was set^[Clean Energy (Income Tax Rates Amendments) Bill 2011] in the context of the Gillard Government's roll out of the Carbon Polultion Reduction Scheme. The increase in the TFT and marginal rate schdule were part of a package of measures designed to ensure that the average low and middle-income earners were not financially disadvantaged by the introduction of the carbon pricing mechanism. The changes to the tax system were informed by the Australia's Future Tax System report 
 
