@@ -15,6 +15,7 @@ library("janitor")   # requires janitor ver 1.2.0
 library("bannerCommenter") # not required
 library("ggrepel")
 library("tint")
+library("rvest") # To scrape ATO historical TFT rates page
 
 
 # invalidate cache when the package version changes
@@ -121,15 +122,65 @@ avg_rates_data <- tibble(
   ATR_without_tft = pit_without_tft / income
 )
 
+##################################################################
+##  Scraping data on historical TFT rates from the ATO website  ##
+##################################################################
+tft_history_ato_web_scrape <- tibble(
+  years = read_html('https://www.ato.gov.au/Rates/Individual-income-tax-for-prior-years/') %>% 
+    html_nodes(xpath = '//*[(@id = "content-main-wrap")]//h3') %>% 
+    html_text(), 
+  "Income Threshold" = read_html('https://www.ato.gov.au/Rates/Individual-income-tax-for-prior-years/') %>% 
+  html_nodes(xpath = '//tr[(((count(preceding-sibling::*) + 1) = 2) and parent::*)]//td[(((count(preceding-sibling::*) + 1) = 1) and parent::*)]//p') %>% 
+  html_text() %>% 
+    str_extract_all(pattern = "(?<=\\$)\\d\\d?,\\d{3}") %>% 
+    str_remove_all(",") %>% 
+    as.numeric()
+) %>% 
+  mutate(
+    "Real Threshold" = `Income Threshold` * 1.03^(as.numeric(rownames(.)) - 1),
+    years             = recode(years, "1999–2000" = "1999-00")
+  ) %>% 
+  gather(key = measure, value = "TFT Threshold", -years)
+
 ```
 
 
-# The TFT reduces complexity but costs are more interesting
-`r newthought("The Tax Free Threshold")`  (TFT) is a band of income to which no individual income tax is applied. The TFT serves a dual purpose in the tax system of reducing complexity while enhancing progressivity. The reduction in **complexity** manifests itself across two domains: firstly, by excluding low-income (<\$18,300) taxpayers from the system fewer people need to determine how the tax law applies to their circumstances and file a return with the ATO; and secondly, the significant administrative costs involved with handling low-Revenue interactions with taxpayers are  eliminated. While the reduction of complexity attributable to the TFT is an interesting subject the production of accurate estimates is a challenging task I have left outside the scope of this note given the need for data on taxpayers who do not file returns.
+# Some background on the policy rationle of the TFT...
+`r newthought("The Tax Free Threshold")`  (TFT) is a band of income to which no individual income tax is applied. The TFT serves a dual purpose in the tax system of reducing the compliance burden while enhancing progressivity. The reduction in **compliance burden** manifests itself across two domains: firstly, by excluding low-income (<\$18,300) taxpayers from the system fewer people need to determine how the tax law applies to their circumstances and file a return with the ATO; and secondly, the significant administrative costs involved with handling low-Revenue interactions with taxpayers are  eliminated. While the reduction of compliance burden attributable to the TFT is an interesting subject, the production of accurate estimates is a challenging task that I have left outside the scope of this note given the need for data on taxpayers who do not file returns.
 
 A progressive tax system is defined as one where the average rate of tax increases as income increases and, as we will discover, the contribution of the TFT to **progressivity** is significant. The questions that I have attempted to deal with below has been to do with the distribution of the TFT benefits and the cost involved in removing it while providing compensation to various categories of low-income earners.
 
+# ... and some History
+The TFT has been an enduring feature of the tax system
+```{r fig-main, fig.cap = "TFT thresholds over time", cache=TRUE}
+ggplot(data = tft_history_ato_web_scrape, aes(x = years, y = `TFT Threshold`, colour = measure)) + 
+  geom_point() + 
+  geom_text(aes(x = 5, y = 14000), label = "TFT\n(real terms)", size = 2.2, colour = "#440154FF") +
+  geom_text(aes(x = 4, y = 7000), label = "TFT\n(nominal terms)", size = 2.2, colour = "#21908CFF") +
+  scale_y_continuous(labels = scales::dollar) +
+  theme_light() + 
+  labs(
+    y = "",
+    x = ""
+  ) + 
+  theme(
+    panel.grid = element_blank(),
+    axis.text.x = element_text(angle = 90, vjust = 0.4, size = 6),
+    axis.text.y = element_text(size = 6),
+    legend.position = "none"
+  ) + 
+  scale_colour_manual(values=c("#21908CFF", "#440154FF"))
+```
+The current TFT was set^[Clean Energy (Income Tax Rates Amendments) Bill 2011] in the roll out of the Gillard Government's Carbon Polultion Reduction Scheme. The increase in the TFT and marginal rate schdule were part of a package of measures designed to ensure that the average low and middle-income earners were not financially disadvantaged by the introduction of the carbon pricing mechanism. The changes to the tax system were informed by the Australia's Future Tax System report
 
+1. eliminate the necessity for some interactions with the tax system where tax payer incomes are very low;  and
+1. provide
+
+I was interested to explore the varous facets of the TFT as concretely as I could so the ... seemed an obvious place to start. While there remains a question about the extent to which the data has been modified to comply with the taxpayer secrecy provisions (primarily to be found in Div 355 _Taxation Administration Act_ 1953) what follows will hopefully provide some useful estimates of:
+1. the distribution of the benefit
+
+# The reduction in compliance burden is large and likely understated by Tax Stats data
+`r newthought("Many low-income taxpayers are carved out")` of the requirement to file their tax returns by virtue of the TFT. This is a key benefit of the TFT given the associated compliance cost savings for taxpayers and the administrative savings for the Government. The [most recent release](https://www.ato.gov.au/About-ATO/Research-and-statistics/In-detail/Taxation-statistics/Taxation-statistics-2016-17/) of Taxation Statistics by the Australian Taxation Office (ATO) reveals that roughly 3.4 million taxpayers reported gross income below the TFT (Figure 1). Consider the number of young people working part-time jobs who do not need to engage with the tax system because of the TFT. Similarly affected are [tax-exempt government transfer](https://www.ato.gov.au/individuals/people-with-disability/tax-free-government-pensions-and-payments/) recipients whose only other income is interest income from a bank savings account with a relatively modest balance.
 ```{r taxpayer_by_bracket, fig.margin = TRUE, fig.cap = "Taxpayers by bracket in 2016-17", fig.width=3.5, fig.height=3.5, cache=TRUE}
 indiv_tax_stats %>%
   filter(income_year == "2016–17") %>%
@@ -162,17 +213,12 @@ indiv_tax_stats %>%
     axis.line.x = element_line(colour = "grey80")
   )
 
-
 ```
-
-# The reduction in complexity is very large
-`r newthought("Low-income taxpayers are carved out")` of the requirement to file their tax returns by virtue of the TFT. This is a key benefit of the TFT given the associated compliance cost savings for taxpayers and the administrative savings for the Government. The [most recent release](https://www.ato.gov.au/About-ATO/Research-and-statistics/In-detail/Taxation-statistics/Taxation-statistics-2016-17/) of Taxation Statistics by the Australian Taxation Office (ATO) reveals that roughly 3.4 million taxpayers reported gross income below the TFT (Figure 1). Consider the number of young people working part-time jobs who do not need to engage with the tax system because of the TFT. Similarly, the number of [tax-exempt government transfer](https://www.ato.gov.au/individuals/people-with-disability/tax-free-government-pensions-and-payments/) recipients whose only other income is interest income from a bank savings account with a modest balance.
-
-When thinking about this figure it it worth bearing in mind that a substantial proportion of these taxpayers will likely have filed in order to claim an overpayment of PAYG withholding tax. Absent from these numbers are taxpayers whose gross incomes were below the TFT and chose not to engage with the system, perhaps because they believed that the PAYG installments were correct to an acceptable margin of error or they did not want to deal with the complexity of filing. In short, the number of people affected by this aspect of the policy is likely to be understated by the Tax Stats data.
+When thinking about the number of taxpayers earning below the TFT it is worth bearing in mind that a substantial proportion of these taxpayers will likely have filed in order to claim an overpayment of PAYG withholding tax. Absent from these numbers are taxpayers whose gross incomes were below the TFT and chose not to engage with the system, perhaps because they believed that the PAYG installments were correct to an acceptable margin of error or they did not want to deal with the complexity of filing. In short, the number of people affected by this aspect of the policy is likely to be understated by the Tax Stats data.
 
 
 
-`r newthought("The presence")` of the TFT affects Average Tax Rates (ATR) by reducing them at all income levels (Figure 2). The impact is greatest  The impact on an individual earning an [average salary of \$86,974.29](https://www.abs.gov.au/AUSSTATS/abs@.nsf/Latestproducts/6302.0Main%20Features3Nov%202018?opendocument&tabname=Summary&prodno=6302.0&issue=Nov%202018&num=&view=) is another \$3,458 in tax, representing an increase in total tax paid of 17.5 per cent.  Figure 1 shows the impact of addition of the maximum \$3,458.00 (\$18,200 x 19%) to the gross tax of a man earning \$18,201 dollars per annum obviously has a greater impact than that of the man earning \$180,000. However, the effect is obviously more  pronounced for those on lower incomes.
+`r newthought("The presence")` of the TFT affects Average Tax Rates (ATR) by reducing them at all income levels (Figure 2). The impact is greatest  The impact on an individual earning an [average salary of \$86,974.29](https://www.abs.gov.au/AUSSTATS/abs@.nsf/Latestproducts/6302.0Main%20Features3Nov%202018?opendocument&tabname=Summary&prodno=6302.0&issue=Nov%202018&num=&view=) is another \$3,458 in tax, representing an increase in total tax paid of 17.5 per cent.  Figure 1 shows the impact of the addition of the maximum \$3,458.00 (\$18,200 x 19%) to the [tax] of a person earning \$18,201 dollars per annum obviously has a greater impact than that of the man earning \$180,000. However, the effect is obviously more  pronounced for those on lower incomes.
 
 ```{r fig-one, fig.margin=TRUE, fig.width=4, fig.height=4, cache=TRUE, echo=FALSE, fig.cap = "Average tax rates"}
  avg_rates_data %>%
@@ -221,16 +267,6 @@ When thinking about this figure it it worth bearing in mind that a substantial p
      caption = "Average tax payments by tax backet"
    )
 ```
-
-# Some History
-The current TFT was set^[Clean Energy (Income Tax Rates Amendments) Bill 2011] in the roll out of the Gillard Government's Carbon Polultion Reduction Scheme. The increase in the TFT and marginal rate schdule were part of a package of measures designed to ensure that the average low and middle-income earners were not financially disadvantaged by the introduction of the carbon pricing mechanism. The changes to the tax system were informed by the Australia's Future Tax System report
-
-1. eliminate the necessity for some interactions with the tax system where tax payer incomes are very low;  and
-1. provide
-
-I was interested to explore the varous facets of the TFT as concretely as I could so the ... seemed an obvious place to start. While there remains a question about the extent to which the data has been modified to comply with the taxpayer secrecy provisions (primarily to be found in Div 355 _Taxation Administration Act_ 1953) what follows will hopefully provide some useful estimates of:
-1. the distribution of the benefit
-
 # The costs and benefits
 (Need a note here: While there remains a question about the extent to which the data has been modified to comply with the taxpayer secrecy provisions (primarily to be found in Div 355 _Taxation Administration Act_ 1953) what follows will hopefully provide some useful estimates).
 ```{r, fig.width=10, fig.height = 5, fig.fullwidth = TRUE, warning=FALSE, cache=TRUE}
