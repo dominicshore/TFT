@@ -124,10 +124,11 @@ avg_rates_data <- tibble(
 ```
 
 
-# Introduction
-This note collects some thinking and analysis on the Tax Free Threshold (TFT). 
+# The TFT reduces complexity but costs are more interesting
+`r newthought("The Tax Free Threshold")`  (TFT) is a band of income to which no individual income tax is applied. The TFT serves a dual purpose in the tax system of reducing complexity while enhancing progressivity. The reduction in **complexity** manifests itself across two domains: firstly, by excluding low-income (<\$18,300) taxpayers from the system fewer people need to determine how the tax law applies to their circumstances and file a return with the ATO; and secondly, the significant administrative costs involved with handling low-Revenue interactions with taxpayers are  eliminated. While the reduction of complexity attributable to the TFT is an interesting subject the production of accurate estimates is a challenging task I have left outside the scope of this note given the need for data on taxpayers who do not file returns.
 
-`r newthought("The TFT serves the dual purpose")` in the tax system of reducing the number of taxpayers brought into the system and enhancing progressivity. While I attept to cover both dimensions, this note primarily sets out my efforts to quantify the impact of the TFT and particularly the distribution of benefits flowing from the tax expenditure.
+A progressive tax system is defined as one where the average rate of tax increases as income increases and, as we will discover, the contribution of the TFT to **progressivity** is significant. The questions that I have attempted to deal with below has been to do with the distribution of the TFT benefits and the cost involved in removing it while providing compensation to various categories of low-income earners.
+
 
 ```{r taxpayer_by_bracket, fig.margin = TRUE, fig.cap = "Taxpayers by bracket in 2016-17", fig.width=3.5, fig.height=3.5, cache=TRUE}
 indiv_tax_stats %>%
@@ -164,9 +165,12 @@ indiv_tax_stats %>%
 
 ```
 
-`r newthought("Small taxpayers are carved out")` of the requirement to file their tax returns by virtue of the TFT. This is a key benefit of the TFT given the associated compliance cost savings for taxpayers and the administrative savings for the Government. The [most recent release](https://www.ato.gov.au/About-ATO/Research-and-statistics/In-detail/Taxation-statistics/Taxation-statistics-2016-17/) of Taxation Statistics by the Australian Taxation Office (ATO) reveals that roughly 3.4 million taxpayers reported gross income below the TFT (Figure 1). When interpreting this figure it it worth bearing in mind that a substantial proportion of these taxpayers will likely have filed in order to correct an overpayment of PAYG withholding tax. Absent from these numbers are taxpayers whose gross incomes were below the TFT and chose not to engage with the system because, either they believed that the PAYG installments were correct to an acceptable margin of error or because they did not want to engage with the complexity.
+# The reduction in complexity is very large
+`r newthought("Low-income taxpayers are carved out")` of the requirement to file their tax returns by virtue of the TFT. This is a key benefit of the TFT given the associated compliance cost savings for taxpayers and the administrative savings for the Government. The [most recent release](https://www.ato.gov.au/About-ATO/Research-and-statistics/In-detail/Taxation-statistics/Taxation-statistics-2016-17/) of Taxation Statistics by the Australian Taxation Office (ATO) reveals that roughly 3.4 million taxpayers reported gross income below the TFT (Figure 1). Consider the number of young people working part-time jobs who do not need to engage with the tax system because of the TFT. Similarly, the number of [tax-exempt government transfer](https://www.ato.gov.au/individuals/people-with-disability/tax-free-government-pensions-and-payments/) recipients whose only other income is interest income from a bank savings account with a modest balance.
 
-Consider the number of young people working low-paying jobs over the weekends who do not need to engage with the tax system because of the TFT. Similarly, the (other examples: old people getting some interest income or something...).
+When thinking about this figure it it worth bearing in mind that a substantial proportion of these taxpayers will likely have filed in order to claim an overpayment of PAYG withholding tax. Absent from these numbers are taxpayers whose gross incomes were below the TFT and chose not to engage with the system, perhaps because they believed that the PAYG installments were correct to an acceptable margin of error or they did not want to deal with the complexity of filing. In short, the number of people affected by this aspect of the policy is likely to be understated by the Tax Stats data.
+
+
 
 `r newthought("The presence")` of the TFT affects Average Tax Rates (ATR) by reducing them at all income levels (Figure 2). The impact is greatest  The impact on an individual earning an [average salary of \$86,974.29](https://www.abs.gov.au/AUSSTATS/abs@.nsf/Latestproducts/6302.0Main%20Features3Nov%202018?opendocument&tabname=Summary&prodno=6302.0&issue=Nov%202018&num=&view=) is another \$3,458 in tax, representing an increase in total tax paid of 17.5 per cent.  Figure 1 shows the impact of addition of the maximum \$3,458.00 (\$18,200 x 19%) to the gross tax of a man earning \$18,201 dollars per annum obviously has a greater impact than that of the man earning \$180,000. However, the effect is obviously more  pronounced for those on lower incomes.
 
@@ -197,9 +201,10 @@ Consider the number of young people working low-paying jobs over the weekends wh
    theme(
      legend.position = 'none'
    ) +
-   geom_text(aes(x = 120000, y = 0.325), label = "Without TFT", size = 3) +
-   geom_text(aes(x = 150000, y = 0.25), label = "With TFT", colour = "#F8766D", size = 3)
-```
+   geom_text(aes(x = 120000, y = 0.325), label = "Without TFT", size = 3, colour = "#440154FF") +
+   geom_text(aes(x = 150000, y = 0.25), label = "With TFT", size = 3, colour = "#21908CFF") +
+   scale_colour_manual(values=c("#21908CFF", "#440154FF"))
+ ```
 
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
@@ -228,7 +233,7 @@ I was interested to explore the varous facets of the TFT as concretely as I coul
 
 # The costs and benefits
 (Need a note here: While there remains a question about the extent to which the data has been modified to comply with the taxpayer secrecy provisions (primarily to be found in Div 355 _Taxation Administration Act_ 1953) what follows will hopefully provide some useful estimates).
-```{r fig-fullwidth, fig.width = 8, fig.height = 6, fig.fullwidth = TRUE, warning=FALSE, cache=TRUE}
+```{r, fig.width=10, fig.height = 5, fig.fullwidth = TRUE, warning=FALSE, cache=TRUE}
 ##################################################################
 ##          How much income would need to be returned?          ##
 ##################################################################
@@ -240,14 +245,17 @@ indiv_tax_stats %>%
   ggplot(aes(x = bracket, y = `Total Additional Tax`, fill = bracket)) +
   geom_col() +
   geom_text(
-    aes(label = format(round(`Total Additional Tax`, 1), big.mark = ","), colour = bracket, fontface = "bold", y = `Total Additional Tax`),
-    vjust = -0.5, 
-    size = 2.5
+    aes(label  = format(round(`Total Additional Tax`, 1), big.mark = ","), 
+        colour = bracket, fontface = "bold", y = `Total Additional Tax`),
+        vjust  = 0.25,
+        hjust  = -0.3,
+        size   = 3,
+        angle  = 90
   ) +
   facet_grid(cols = vars(income_year)) +
   scale_y_continuous(
     labels = scales::dollar,
-    expand = expand_scale(mult = c(0, 0.1)),
+    expand = expand_scale(mult = c(0, 0.2)),
     breaks = c(10, 15, 20, 25)
   ) +
   labs(
@@ -260,10 +268,14 @@ indiv_tax_stats %>%
   theme_light() +
   theme(
     legend.position = 'none',
-    axis.text.x = element_text(angle = 90, vjust = 0.4, hjust = 1),
+    axis.text.x = element_text(angle = 90, vjust = 0.4, hjust = 1, size = 8),
     panel.grid.minor = element_blank(),
     panel.grid.major = element_blank(),
     axis.ticks = element_blank(),
-    axis.text.y = element_blank()
+    axis.text.y = element_blank(),
+    axis.title.y = element_text(size = 8),
+    plot.title = element_text(size = 12),
+    plot.subtitle = element_text(size = 10),
+    strip.text = element_text(size = 8)
   )
 ```
